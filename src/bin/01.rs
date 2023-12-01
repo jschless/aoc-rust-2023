@@ -1,6 +1,6 @@
 advent_of_code::solution!(1);
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one_old(input: &str) -> Option<u32> {
     Some(
         input
             .lines()
@@ -15,6 +15,20 @@ pub fn part_one(input: &str) -> Option<u32> {
                 };
                 num.parse::<u32>().unwrap()
             })
+            .sum(),
+    )
+}
+
+pub fn part_one(input: &str) -> Option<u32> {
+    Some(
+        input
+            .lines()
+            .map(|line| {
+                line.chars()
+                    .filter_map(|c| c.to_digit(10))
+                    .collect::<Vec<u32>>()
+            })
+            .map(|v| 10 * v.first().unwrap() + v.last().unwrap())
             .sum(),
     )
 }
@@ -36,7 +50,7 @@ pub fn part_two(input: &str) -> Option<u32> {
     for (search, r_string) in num_vec.iter() {
         new_string = new_string.replace(search, r_string);
     }
-    print!("new string: {}", new_string);
+
     part_one(&new_string)
 }
 
