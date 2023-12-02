@@ -1,4 +1,5 @@
 use std::cmp;
+
 advent_of_code::solution!(2);
 
 fn get_game_maxes(input: &str) -> Vec<(u32, u32, u32)> {
