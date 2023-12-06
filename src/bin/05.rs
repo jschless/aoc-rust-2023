@@ -1,15 +1,15 @@
 use std::str::FromStr;
 advent_of_code::solution!(5);
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 
-struct Mapping {
+struct MapEntry {
     dest_range_start: usize,
     source_range_start: usize,
     length: usize,
 }
 
-impl Mapping {
+impl MapEntry {
     fn map_seed(&self, seed: usize) -> usize {
         if seed < self.source_range_start || seed - self.source_range_start >= self.length {
             seed
@@ -27,72 +27,69 @@ impl Mapping {
     }
 }
 
-impl FromStr for Mapping {
+impl FromStr for MapEntry {
     type Err = &'static str; // Define the error type
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Split the input string and parse fields
         let parts: Vec<&str> = s.split_whitespace().collect();
 
-        Ok(Mapping {
-            dest_range_start: parts[0]
-                .parse::<usize>()
-                .expect("couldn't parse dest_start"),
-            source_range_start: parts[1]
-                .parse::<usize>()
-                .expect("couldn't parse source_start"),
-            length: parts[2].parse::<usize>().expect("couldn't parse range"),
+        Ok(MapEntry {
+            dest_range_start: parts[0].parse::<usize>().unwrap(),
+            source_range_start: parts[1].parse::<usize>().unwrap(),
+            length: parts[2].parse::<usize>().unwrap(),
         })
     }
 }
 
-fn remove_label(s: &str) -> &str {
-    let col = s.find(':').unwrap();
-    &s[col + 2..]
+impl FromStr for Mapping {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Mapping(
+            s.lines()
+                .skip(1) // skip the label
+                .map(|mapping| mapping.parse::<MapEntry>().unwrap())
+                .collect(),
+        ))
+    }
 }
 
-fn parse_input(input: &str) -> Option<(Vec<usize>, Vec<Vec<Mapping>>)> {
+#[derive(Debug, Clone)]
+struct Mapping(Vec<MapEntry>);
+
+impl Mapping {
+    fn map_seed(&self, seed: usize) -> usize {
+        for m in &self.0 {
+            if m.map_seed(seed) != seed {
+                return m.map_seed(seed);
+            }
+        }
+        seed
+    }
+
+    fn rev_map_seed(&self, seed: usize) -> usize {
+        for m in &self.0 {
+            if m.rev_map_seed(seed) != seed {
+                return m.rev_map_seed(seed);
+            }
+        }
+        seed
+    }
+}
+
+fn parse_input(input: &str) -> Option<(Vec<usize>, Vec<Mapping>)> {
     if let Some((seeds, mappings)) = input.split_once("\n\n") {
-        let new_seeds: Vec<usize> = remove_label(seeds)
+        let new_seeds: Vec<usize> = seeds[7..] // start where the numbers are
             .split_whitespace()
             .map(|s| s.parse::<usize>().expect("expected usize str"))
             .collect();
-        let new_mappings: Vec<Vec<Mapping>> = mappings
+        let new_mappings: Vec<Mapping> = mappings
             .split("\n\n")
-            .map(|mapping_group| {
-                mapping_group
-                    .lines()
-                    .skip(1) // skip the label round
-                    .map(|mapping| {
-                        mapping
-                            .parse::<Mapping>()
-                            .expect("could not parse into mapping")
-                    })
-                    .collect()
-            })
+            .map(|mapping| mapping.parse().unwrap())
             .collect();
         Some((new_seeds, new_mappings))
     } else {
         None
     }
-}
-
-fn map_seed(seed: usize, mappings: &Vec<Mapping>) -> usize {
-    for m in mappings {
-        if m.map_seed(seed) != seed {
-            return m.map_seed(seed);
-        }
-    }
-    seed
-}
-
-fn rev_map_seed(seed: usize, mappings: &Vec<Mapping>) -> usize {
-    for m in mappings {
-        if m.rev_map_seed(seed) != seed {
-            return m.rev_map_seed(seed);
-        }
-    }
-    seed
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -101,13 +98,7 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(
         seeds
             .iter()
-            .map(|seed| {
-                let mut ans: usize = *seed;
-                for map in &mappings {
-                    ans = map_seed(ans, map);
-                }
-                ans
-            })
+            .map(|seed| mappings.iter().fold(*seed, |acc, map| map.map_seed(acc)))
             .min()
             .unwrap() as u32,
     )
@@ -118,62 +109,47 @@ pub fn part_two(input: &str) -> Option<u32> {
 
     let (seeds, mappings) = parse_input(input).unwrap();
 
-    let mut rev_mappings: Vec<Vec<Mapping>> = mappings.clone();
-    rev_mappings.reverse();
+    let rev_mappings: Vec<Mapping> = mappings.iter().cloned().rev().collect();
 
     let mut potential_start_seeds: Vec<usize> = Vec::new();
 
     for map_i in 0..rev_mappings.len() {
-        let cur_map = &rev_mappings[map_i];
-        // for all the source boundaries, let's reverse these to the end
-        // dbg!(cur_map);
-        let res: Vec<usize> = cur_map
+        rev_mappings[map_i]
+            .0
             .iter()
             .map(|mapping| {
-                let mut ans = mapping.source_range_start;
-
-                // println!("Starting with SEED: {}", ans);
-                for map in &rev_mappings[map_i + 1..] {
-                    ans = rev_map_seed(ans, map);
-                    // println!("Intermediate step: {}", ans);
-                }
-                ans
+                rev_mappings[map_i + 1..]
+                    .iter()
+                    .fold(mapping.source_range_start, |acc, map| map.rev_map_seed(acc))
             })
-            .collect();
-
-        for i in res {
-            potential_start_seeds.push(i);
-        }
+            .map(|x| potential_start_seeds.push(x))
+            .min(); // force iter to eval
     }
-    println!("Exploring {} possible seeds", potential_start_seeds.len());
 
-    let mut new_seeds: Vec<usize> = Vec::new();
-    for chunk in seeds.chunks(2) {
-        match chunk {
-            &[start, len] => {
-                for i in &potential_start_seeds {
-                    if i >= &start && i < &(start + len) {
-                        new_seeds.push(*i);
-                    }
+    // only test the seeds that are in valid ranges
+    let new_seeds: Vec<usize> = seeds
+        .chunks(2)
+        .flat_map(|chunk| match chunk {
+            &[start, len] => potential_start_seeds.iter().filter_map(move |i| {
+                if *i >= start && *i < start + len {
+                    Some(*i)
+                } else {
+                    None
                 }
-            }
-            _ => {
-                panic!()
-            }
-        }
-    }
+            }),
+            _ => panic!(),
+        })
+        .collect();
 
+    println!(
+        "Explored {} of {} possible seeds",
+        new_seeds.len(),
+        potential_start_seeds.len()
+    );
     Some(
         new_seeds
             .iter()
-            .map(|seed| {
-                let mut ans: usize = *seed;
-
-                for map in &mappings {
-                    ans = map_seed(ans, map);
-                }
-                ans
-            })
+            .map(|seed| mappings.iter().fold(*seed, |acc, map| map.map_seed(acc)))
             .min()
             .unwrap() as u32,
     )
