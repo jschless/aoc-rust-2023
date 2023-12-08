@@ -20,62 +20,46 @@ fn parse_input(input: &str) -> (Vec<usize>, HashMap<&str, Vec<&str>>) {
                 .collect::<Vec<&str>>(),
         );
     }
-    return (pattern_vec, map_map);
+    (pattern_vec, map_map)
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
-    let (pattern, maps) = parse_input(input);
-    let mut iters: u32 = 0;
+fn gen_solve<F>(
+    start_key: &str,
+    pattern: Vec<usize>,
+    maps: HashMap<&str, Vec<&str>>,
+    check_done: F,
+) -> u64
+where
+    F: Fn(&str) -> bool,
+{
+    let mut iters: u64 = 0;
     let mut ind: usize = 0;
-    let mut cur_key = "AAA";
+    let mut cur_key = start_key;
     loop {
         iters += 1;
         let inst = *pattern.get(ind).unwrap();
-        // dbg!(inst, cur_key, &map_map);
         let cur_val = maps.get(cur_key).unwrap();
         cur_key = cur_val.get(inst).unwrap();
 
-        if cur_key == "ZZZ" {
-            return Some(iters);
+        if check_done(cur_key) {
+            return iters;
         }
         ind = (ind + 1) % pattern.len(); // circular indexing
     }
 }
 
-fn vec_lcm(nums: Vec<u64>) -> u64 {
-    let mut acc: u64 = *nums.first().unwrap();
-    for n in nums.iter().skip(1).cloned() {
-        acc = lcm(acc, n);
-    }
-    acc
+pub fn part_one(input: &str) -> Option<u64> {
+    let (pattern, maps) = parse_input(input);
+    Some(gen_solve("AAA", pattern, maps, |s| s == "ZZZ"))
 }
 
 pub fn part_two(input: &str) -> Option<u64> {
     let (pattern, maps) = parse_input(input);
-
     let cur_keys: Vec<&str> = maps.keys().cloned().filter(|s| s.ends_with('A')).collect();
-    let ind_answers: Vec<u64> = cur_keys
+    cur_keys
         .iter()
-        .map(|key| {
-            let mut iters: u64 = 0;
-            let mut ind: usize = 0;
-            let mut cur_key = key;
-            loop {
-                iters += 1;
-                let inst = *pattern.get(ind).unwrap();
-                // dbg!(inst, cur_key, &map_map);
-                let cur_val = maps.get(cur_key).unwrap();
-                cur_key = cur_val.get(inst).unwrap();
-
-                if cur_key.ends_with('Z') {
-                    return iters;
-                }
-                ind = (ind + 1) % pattern.len(); // circular indexing
-            }
-        })
-        .collect();
-
-    Some(vec_lcm(ind_answers))
+        .map(|key| gen_solve(key, pattern.clone(), maps.clone(), |s| s.ends_with('Z')))
+        .reduce(lcm)
 }
 
 #[cfg(test)]
@@ -93,7 +77,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&fs::read_to_string("./data/examples/08_2.txt").unwrap());
-        // let result = part_two(&advent_of_code::template::read_file("examples", "08_2.txt"));
         assert_eq!(result, Some(6));
     }
 }
