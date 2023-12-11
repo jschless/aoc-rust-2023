@@ -64,8 +64,8 @@ fn get_path(grid: &[Vec<Pipe>]) -> Option<Vec<(i32, i32)>> {
     let mut cur = (0, 0);
     let mut path: Vec<(i32, i32)> = vec![start];
 
-    // now we have to find some neighbor
-    for (y, x) in &[(0, 1), (1, 0)] {
+    // now we have to find some neighbor bc we don't know what the start looks like
+    for (y, x) in &[(0, 1), (1, 0), (-1, 0), (0, -1)] {
         let new_loc = (start.0 + y, start.1 + x);
         let neighbors = get_val(grid, new_loc)?.neighbors(new_loc);
         if neighbors.0 == start || neighbors.1 == start {
@@ -113,6 +113,7 @@ pub fn part_two(input: &str) -> Option<u32> {
     let mut path = get_path(&grid).unwrap();
 
     path.push(path[0]);
+
     let area: i32 = path
         .windows(2)
         .map(|arr| arr[1].0 * arr[0].1 - arr[1].1 * arr[0].0)
