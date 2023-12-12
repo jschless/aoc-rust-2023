@@ -2,36 +2,6 @@ use regex::Regex;
 
 advent_of_code::solution!(12);
 
-pub fn part_one(input: &str) -> Option<u32> {
-    let patterns: Vec<Vec<usize>> = input
-        .lines()
-        .map(|line| {
-            line.split_once(' ')
-                .unwrap()
-                .1
-                .split(',')
-                .map(|s| s.parse::<usize>().unwrap())
-                .collect()
-        })
-        .collect();
-
-    Some(
-        input
-            .lines()
-            .map(|line| {
-                line.split_once(' ')
-                    .unwrap()
-                    .0
-                    .chars()
-                    .collect::<Vec<char>>()
-            })
-            .zip(patterns.iter())
-            // .take(1)
-            .map(|(in_vec, pattern)| gen_matches(in_vec, pattern))
-            .sum(),
-    )
-}
-
 fn get_counts(v: &Vec<char>) -> Vec<usize> {
     let mut ans: Vec<usize> = Vec::new();
     let mut count = 0;
@@ -89,57 +59,65 @@ fn check(v: &Vec<char>, pat: &Vec<usize>, n_chars: usize) -> bool {
     ret
 }
 
-fn gen_matches(v: Vec<char>, pattern: &Vec<usize>) -> u32 {
-    let mut to_explore: Vec<Vec<char>> = Vec::new();
-    let mut options: Vec<Vec<char>> = Vec::new();
+fn get_next(remaining: &[char], mut builder: Vec<char>, pattern: &Vec<usize>) -> u32 {
+    // dbg!(remaining, &builder, &pattern);
+    if !check(&builder, pattern, remaining.len()) {
+        return 0;
+    }
+    match remaining {
+        [c, rest @ ..] => match *c {
+            '?' => {
+                let mut temp_vec = builder.clone();
+                temp_vec.push('#');
+                let mut temp_vec_2 = builder.clone();
+                temp_vec_2.push('p');
 
-    to_explore.push(Vec::new());
-    let mut total_explored = 0;
-    let N_CHARS = v.len();
-    for c in v {
-        while let Some(mut builder) = to_explore.pop() {
-            if check(&builder, pattern, N_CHARS) {
-                total_explored += 1;
-                match c {
-                    '?' => {
-                        let mut new_builder = builder.clone();
-                        new_builder.push('p');
-                        options.push(new_builder);
-                        let mut new_builder = builder.clone();
-                        new_builder.push('#');
-                        total_explored += 1;
-                        options.push(new_builder);
-                    }
-                    '.' => {
-                        builder.push('p');
-                        options.push(builder);
-                    }
-                    c => {
-                        builder.push(c);
-                        options.push(builder);
-                    }
-                }
+                get_next(rest, temp_vec, pattern) + get_next(rest, temp_vec_2, pattern)
+            }
+            c => {
+                let mut temp_vec = builder.clone();
+                temp_vec.push(c);
+                get_next(rest, temp_vec, pattern)
+            }
+        },
+        [] => {
+            if check_final(&builder, pattern) {
+                1
+            } else {
+                0
             }
         }
-        to_explore = options.clone();
-        options = Vec::new();
     }
+}
 
-    let matches: Vec<Vec<char>> = to_explore
-        .iter()
-        .filter(|v| check_final(v, pattern))
-        .cloned()
+pub fn part_one(input: &str) -> Option<u32> {
+    let patterns: Vec<Vec<usize>> = input
+        .lines()
+        .map(|line| {
+            line.split_once(' ')
+                .unwrap()
+                .1
+                .split(',')
+                .map(|s| s.parse::<usize>().unwrap())
+                .collect()
+        })
         .collect();
-    // dbg!(matches.len(), pattern);
-    // if matches.len() == 17 {
-    //     dbg!(matches, pattern);
-    // }
 
-    // start point: total_explored = 452 for test, 915016 for run
-    // adding early termination based  on remaining length: total_explored = 440 for test, 416134 for run
-
-    // total_explored
-    matches.len() as u32
+    Some(
+        input
+            .lines()
+            .map(|line| {
+                line.split_once(' ')
+                    .unwrap()
+                    .0
+                    .chars()
+                    .collect::<Vec<char>>()
+            })
+            .zip(patterns.iter())
+            // .take(1)
+            .map(|(in_vec, pattern)| get_next(&in_vec, Vec::new(), pattern))
+            .sum(),
+    )
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
