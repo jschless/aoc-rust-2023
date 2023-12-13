@@ -1,6 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher;
-
 advent_of_code::solution!(13);
 
 fn transpose_grid(grid: &[Vec<u8>]) -> Vec<Vec<u8>> {
@@ -9,55 +6,47 @@ fn transpose_grid(grid: &[Vec<u8>]) -> Vec<Vec<u8>> {
         .collect()
 }
 
-fn gen_check(data: &[u8]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    hasher.write(data);
-    hasher.finish()
+fn xor_sum(d1: &[u8], d2: &[u8]) -> u8 {
+    // returns the sum of xor values for two vecs
+    d1.iter().zip(d2.iter()).map(|(a, b)| a ^ b).sum()
 }
 
-pub fn get_pattern_vals(input: &str) -> u32 {
+fn find_changes(v: &[Vec<u8>], allowable_diffs: u8) -> u32 {
+    (1..v.len())
+        .map(|split| {
+            if v.iter()
+                .take(split)
+                .rev()
+                .zip(v.iter().skip(split))
+                .map(|(a, b)| xor_sum(a, b))
+                .sum::<u8>()
+                == allowable_diffs
+            // gets sum of xor differences
+            {
+                split
+            } else {
+                0
+            }
+        })
+        .sum::<usize>() as u32
+}
+
+pub fn get_pattern_vals(input: &str, allowable_diff: u8) -> u32 {
     let grid: Vec<Vec<u8>> = input
         .trim()
         .lines()
         .map(|line| line.chars().map(|c| if c == '#' { 1 } else { 0 }).collect())
         .collect();
 
-    let row_hashes: Vec<u64> = grid.iter().map(|x| gen_check(x)).collect();
-    let mut acc = 0;
-
-    for row_split in 1..grid.len() {
-        if row_hashes[..row_split]
-            .iter()
-            .rev()
-            .zip(row_hashes[row_split..].iter())
-            .all(|(a, b)| a == b)
-        {
-            // println!("splitting up of row {}", row_split);
-            acc += 100 * row_split;
-        }
-    }
-
-    let col_hashes: Vec<u64> = transpose_grid(&grid).iter().map(|x| gen_check(x)).collect();
-    for col_split in 1..grid[0].len() {
-        if col_hashes[..col_split]
-            .iter()
-            .rev()
-            .zip(col_hashes[col_split..].iter())
-            .all(|(a, b)| a == b)
-        {
-            // println!("splitting left of col {}", col_split);
-            acc += col_split;
-        }
-    }
-    acc as u32
+    100 * find_changes(&grid, allowable_diff) + find_changes(&transpose_grid(&grid), allowable_diff)
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
-    Some(input.split("\n\n").map(|pat| get_pattern_vals(pat)).sum())
+    Some(input.split("\n\n").map(|p| get_pattern_vals(p, 0)).sum())
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    Some(input.split("\n\n").map(|p| get_pattern_vals(p, 1)).sum())
 }
 
 #[cfg(test)]
@@ -73,6 +62,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(400));
     }
 }
