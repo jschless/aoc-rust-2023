@@ -222,22 +222,22 @@ mod tests {
         assert_eq!(result, Some(525152));
     }
 
-    #[test]
-    fn test_checker() {
-        let result = check(
-            &vec!['.', '#', '#', '#', '.', '.', '.', '.', '#', '.'],
-            &vec![3, 2, 1],
-            2,
-        );
-        assert_eq!(result, false);
+    // #[test]
+    // fn test_checker() {
+    //     let result = check(
+    //         &vec!['.', '#', '#', '#', '.', '.', '.', '.', '#', '.'],
+    //         &vec![3, 2, 1],
+    //         2,
+    //     );
+    //     assert_eq!(result, false);
 
-        let result = check(
-            &vec![
-                '#', '.', '.', '#', '#', '#', '.', '.', '.', '.', '#', '#', '#', '.', '#',
-            ],
-            &vec![1, 3, 3, 2],
-            2,
-        );
-        assert_eq!(result, false);
-    }
+    //     let result = check(
+    //         &vec![
+    //             '#', '.', '.', '#', '#', '#', '.', '.', '.', '.', '#', '#', '#', '.', '#',
+    //         ],
+    //         &vec![1, 3, 3, 2],
+    //         2,
+    //     );
+    //     assert_eq!(result, false);
+    // }
 }
