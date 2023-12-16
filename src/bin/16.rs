@@ -110,19 +110,11 @@ impl LightDir {
     }
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
-    let grid: Vec<Vec<char>> = input
-        .lines()
-        .map(|line| line.chars().collect::<Vec<char>>())
-        .collect();
-
+fn energize(grid: &[Vec<char>], start_state: ((usize, usize), LightDir)) -> u32 {
     let dimensions = (grid.len() - 1, grid[0].len() - 1);
     let mut visited: HashSet<((usize, usize), LightDir)> = HashSet::new();
-
     let mut cur_lights: VecDeque<((usize, usize), LightDir)> = VecDeque::new();
-
-    let (next_dir, _) = LightDir::E.transition_lens(grid[0][0]);
-    cur_lights.push_back(((0, 0), next_dir));
+    cur_lights.push_front(start_state);
 
     while let Some((loc, dir)) = cur_lights.pop_front() {
         visited.insert((loc, dir));
@@ -140,18 +132,60 @@ pub fn part_one(input: &str) -> Option<u32> {
         }
     }
 
-    Some(
-        visited
-            .iter()
-            .map(|(loc, _)| loc)
-            .cloned()
-            .collect::<HashSet<(usize, usize)>>()
-            .len() as u32,
-    )
+    visited
+        .iter()
+        .map(|(loc, _)| loc)
+        .cloned()
+        .collect::<HashSet<(usize, usize)>>()
+        .len() as u32
+}
+
+pub fn part_one(input: &str) -> Option<u32> {
+    let grid: Vec<Vec<char>> = input
+        .lines()
+        .map(|line| line.chars().collect::<Vec<char>>())
+        .collect();
+
+    let start_loc = (0, 0);
+    let start_dir = LightDir::E
+        .transition_lens(grid[start_loc.0][start_loc.1])
+        .0;
+
+    Some(energize(&grid, (start_loc, start_dir)))
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let grid: Vec<Vec<char>> = input
+        .lines()
+        .map(|line| line.chars().collect::<Vec<char>>())
+        .collect();
+
+    let max_row = grid.len() - 1;
+    let max_col = grid[0].len() - 1;
+
+    let mut start_vec: Vec<((usize, usize), LightDir)> = Vec::new();
+    for col in 0..=max_col {
+        start_vec.push(((0, col), LightDir::S));
+        start_vec.push(((max_row, col), LightDir::N));
+    }
+
+    for row in 0..=max_row {
+        start_vec.push(((row, 0), LightDir::E));
+        start_vec.push(((row, max_col), LightDir::W));
+    }
+    start_vec
+        .iter()
+        .cloned()
+        .map(|(start_pos, start_dir)| {
+            energize(
+                &grid,
+                (
+                    start_pos,
+                    start_dir.transition_lens(grid[start_pos.0][start_pos.1]).0,
+                ),
+            )
+        })
+        .max()
 }
 
 #[cfg(test)]
@@ -167,6 +201,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(51));
     }
 }
