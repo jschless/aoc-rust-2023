@@ -1,5 +1,5 @@
 use itertools::iproduct;
-use std::{collections::HashMap, mem};
+use std::collections::HashMap;
 advent_of_code::solution!(14);
 
 #[derive(Debug, PartialEq)]
@@ -106,7 +106,7 @@ fn compute_north_load(grid: &HashMap<(usize, usize), char>, dimensions: (usize, 
     acc as u32
 }
 
-fn disp_grid(grid: &HashMap<(usize, usize), char>, dimensions: (usize, usize)) {
+fn _disp_grid(grid: &HashMap<(usize, usize), char>, dimensions: (usize, usize)) {
     for x in 0..dimensions.0 {
         for y in 0..dimensions.1 {
             print!("{}", grid.get(&(x, y)).unwrap());
@@ -166,7 +166,7 @@ pub fn part_two(input: &str) -> Option<u32> {
 
     let max_val = loads.iter().skip(warm_up).max().unwrap();
 
-    let cycle_len = loads
+    let _cycle_len = loads
         .iter()
         .cloned()
         .enumerate()

@@ -91,7 +91,7 @@ impl Record {
             .any(|(a, b)| b < a)
     }
 
-    fn to_key(&self) -> (bool, bool, &[char], Vec<usize>) {
+    fn _to_key(&self) -> (bool, bool, &[char], Vec<usize>) {
         (
             (self.builder.last().cloned().unwrap_or('.') == '#'),
             self.is_partial(),
@@ -177,7 +177,7 @@ pub fn part_one(input: &str) -> Option<u64> {
     // Some(0)
 }
 
-fn dup_chars(in_vec: &[char]) -> Vec<char> {
+fn _dup_chars(in_vec: &[char]) -> Vec<char> {
     let mut new_vec: Vec<char> = Vec::new();
     for _ in 0..5 {
         for &x in in_vec {
@@ -189,7 +189,7 @@ fn dup_chars(in_vec: &[char]) -> Vec<char> {
     new_vec
 }
 
-pub fn part_two(input: &str) -> Option<u64> {
+pub fn part_two(_input: &str) -> Option<u64> {
     None
 }
 
