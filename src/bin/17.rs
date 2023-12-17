@@ -8,7 +8,6 @@ advent_of_code::solution!(17);
 struct State {
     loc: (usize, usize),
     dir: (i32, i32),
-    n_cont: usize,
     priority: u32,
 }
 
@@ -17,35 +16,21 @@ impl State {
         let mut neighbors: Vec<State> = Vec::new();
         let dim = (grid.len() as i32, grid[0].len() as i32);
         let (dy, dx) = self.dir;
-        let y = self.loc.0 as i32;
-        let x = self.loc.1 as i32;
-        // turn
+        let (y, x) = (self.loc.0 as i32, self.loc.1 as i32);
+
         for d in move_bounds.0..move_bounds.1 {
-            for (i, j) in [(-dx, -dy), (dx, dy), (dy, dx)] {
-                // dbg!(x, j);
-                let new_x = x + j * d;
-                let new_y = y + i * d;
+            for (i, j) in [(-dx, -dy), (dx, dy)] {
+                let (new_y, new_x) = (y + i * d, x + j * d);
+
                 if new_y >= 0 && new_y < dim.0 && new_x >= 0 && new_x < dim.1 {
-                    let n_cont = if self.dir == (i, j) {
-                        self.n_cont + d as usize
-                    } else {
-                        d as usize
-                    };
-                    let mut cost = 0;
+                    let mut priority = self.priority;
                     for step in 1..=d {
-                        cost += grid[(y + i * step) as usize][(x + j * step) as usize];
-                    }
-
-                    let priority = self.priority + cost as u32;
-
-                    if n_cont >= move_bounds.1 as usize {
-                        continue;
+                        priority += grid[(y + i * step) as usize][(x + j * step) as usize] as u32;
                     }
 
                     neighbors.push(State {
                         loc: (new_y as usize, new_x as usize),
                         dir: (i, j),
-                        n_cont,
                         priority,
                     });
                 }
@@ -58,7 +43,7 @@ impl State {
 
 impl PartialEq for State {
     fn eq(&self, other: &Self) -> bool {
-        self.loc == other.loc && self.dir == other.dir && self.n_cont == other.n_cont
+        self.loc == other.loc && self.dir == other.dir
     }
 }
 
@@ -68,7 +53,6 @@ impl Hash for State {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.loc.hash(state);
         self.dir.hash(state);
-        self.n_cont.hash(state);
     }
 }
 
@@ -97,40 +81,19 @@ pub fn solver(input: &str, move_bounds: (i32, i32)) -> Option<u32> {
     let mut distances: HashMap<State, u32> = HashMap::new();
     let mut q: BinaryHeap<State> = BinaryHeap::new();
 
-    // fill q with state space
-    for i in 0..grid.len() {
-        for j in 0..grid[0].len() {
-            for dir in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
-                for n_cont in move_bounds.0..move_bounds.1 {
-                    let state = State {
-                        loc: (i, j),
-                        dir,
-                        n_cont: n_cont as usize,
-                        priority: u32::MAX - 1000,
-                    };
-                    distances.insert(state, state.priority);
-                    q.push(state);
-                }
-            }
-        }
-    }
-
     for dir in [(0, 1), (1, 0)] {
         let s = State {
             loc: (0, 0),
             dir,
-            n_cont: 0,
             priority: 0,
         };
         q.push(s);
         distances.insert(s, 0);
     }
 
-    while !q.is_empty() {
-        let state = q.pop().unwrap();
-
+    while let Some(state) = q.pop() {
         for next_state in state.get_neighbors(&grid, move_bounds) {
-            if next_state.priority < distances[&next_state] {
+            if next_state.priority < *distances.get(&next_state).unwrap_or(&u32::MAX) {
                 distances.insert(next_state, next_state.priority);
                 q.push(next_state);
             }
