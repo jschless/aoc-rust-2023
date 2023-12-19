@@ -4,79 +4,150 @@ use regex::Regex;
 
 advent_of_code::solution!(19);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Instr {
-    Accept,
-    Reject,
-    Goto {
-        dest: String,
-    },
+    Accept, // leaf
+    Reject, // leaf
     LessThan {
-        var: char,
-        comp: u32,
+        var: usize,
+        comp: i64,
+        if_cond: Box<Instr>,
         else_cond: Box<Instr>,
     },
     GreaterThan {
-        var: char,
-        comp: u32,
+        var: usize,
+        comp: i64,
+        if_cond: Box<Instr>,
         else_cond: Box<Instr>,
     },
 }
 
 impl Instr {
-    fn from_str(input: &str) -> Self {
+    fn from_vec(in_vec: &[&str], vec_map: HashMap<&str, Vec<&str>>) -> Self {
+        let input = in_vec[0];
         if input.find(':').is_none() {
             match input {
                 "A" => Instr::Accept,
                 "R" => Instr::Reject,
-                x => Instr::Goto {
-                    dest: x.to_string(),
-                },
+                x => Instr::from_vec(&vec_map[x].clone(), vec_map),
             }
         } else {
-            let (expr, else_cond) = input.split_once(':').unwrap();
-            let var: char = expr.chars().next().unwrap();
-            let comp = expr[2..].parse::<u32>().unwrap();
+            let (expr, if_cond) = input.split_once(':').unwrap();
+            let var: usize = match expr.chars().next().unwrap() {
+                'x' => 0,
+                'm' => 1,
+                'a' => 2,
+                's' => 3,
+                _ => panic!(),
+            };
+            let comp = expr[2..].parse::<i64>().unwrap();
 
             if input.find('>').is_some() {
                 Instr::GreaterThan {
                     var,
                     comp,
-                    else_cond: Box::new(Instr::from_str(else_cond)),
+                    if_cond: Box::new(Instr::from_vec(&[if_cond], vec_map.clone())),
+                    else_cond: Box::new(Instr::from_vec(&in_vec[1..], vec_map.clone())),
                 }
             } else {
                 Instr::LessThan {
                     var,
                     comp,
-                    else_cond: Box::new(Instr::from_str(else_cond)),
+                    if_cond: Box::new(Instr::from_vec(&[if_cond], vec_map.clone())),
+                    else_cond: Box::new(Instr::from_vec(&in_vec[1..], vec_map.clone())),
                 }
+            }
+        }
+    }
+
+    fn explore(&self, inp: &[i64]) -> bool {
+        match self {
+            Instr::Accept => true,
+            Instr::Reject => false,
+            Instr::GreaterThan {
+                var,
+                comp,
+                if_cond,
+                else_cond,
+            } => {
+                if inp[*var] > *comp {
+                    if_cond.explore(inp)
+                } else {
+                    else_cond.explore(inp)
+                }
+            }
+            Instr::LessThan {
+                var,
+                comp,
+                if_cond,
+                else_cond,
+            } => {
+                if inp[*var] < *comp {
+                    if_cond.explore(inp)
+                } else {
+                    else_cond.explore(inp)
+                }
+            }
+        }
+    }
+
+    fn n_combos(&self, ranges: &[(usize, usize)]) -> i64 {
+        // maintain non-inclusive ranges for [x, m, a, s]
+        // if reach an Accept, return number of combinations
+        // if reach a reject, return 0
+
+        match self {
+            Instr::Accept => ranges.iter().map(|(l, u)| (u - l - 1) as i64).product(),
+            Instr::Reject => 0,
+            Instr::GreaterThan {
+                var,
+                comp,
+                if_cond,
+                else_cond,
+            } => {
+                let mut if_ranges = ranges.to_vec();
+                let mut else_ranges = ranges.to_vec();
+                if_ranges[*var] = (*comp as usize, ranges[*var].1);
+                else_ranges[*var] = (ranges[*var].0, *comp as usize + 1);
+                if_cond.n_combos(&if_ranges) + else_cond.n_combos(&else_ranges)
+            }
+            Instr::LessThan {
+                var,
+                comp,
+                if_cond,
+                else_cond,
+            } => {
+                let mut if_ranges = ranges.to_vec();
+                let mut else_ranges = ranges.to_vec();
+                else_ranges[*var] = (*comp as usize - 1, ranges[*var].1);
+                if_ranges[*var] = (ranges[*var].0, *comp as usize);
+                if_cond.n_combos(&if_ranges) + else_cond.n_combos(&else_ranges)
             }
         }
     }
 }
 
-fn parse_workflows(input: &str) -> (Vec<Vec<Instr>>, HashMap<&str, usize>) {
-    let mut name_to_workflow: HashMap<&str, usize> = HashMap::new();
-    let v: Vec<Vec<Instr>> = input
+fn parse_workflows(input: &str) -> Instr {
+    let name_to_instr_list: HashMap<&str, Vec<&str>> = input
         .lines()
-        .enumerate()
-        .map(|(i, line)| {
+        .map(|line| {
             let begin_brack = line.find('{').unwrap();
             let name = &line[..begin_brack];
-            name_to_workflow.insert(name, i);
-            let instr_list = &line[begin_brack + 1..line.len() - 1];
-            instr_list
+            let instr_list = &line[begin_brack + 1..line.len() - 1]
                 .split(',')
-                .map(Instr::from_str)
-                .collect::<Vec<Instr>>()
+                .collect::<Vec<&str>>();
+
+            (name, instr_list.clone())
         })
         .collect();
-    (v, name_to_workflow)
+
+    Instr::from_vec(&name_to_instr_list["in"], name_to_instr_list.clone())
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<i64> {
     let (workflows, inputs) = input.split_once("\n\n").unwrap();
-    let (v, name_to_workflow) = parse_workflows(workflows);
+    let i = parse_workflows(workflows);
+
     let instructions: Vec<_> = inputs
         .lines()
         .map(|line| {
@@ -84,12 +155,12 @@ pub fn part_one(input: &str) -> Option<u32> {
                 Regex::new(r".*x=(?P<xval>\d*),m=(?P<mval>\d*),a=(?P<aval>\d*),s=(?P<sval>\d*).*")
                     .unwrap();
             let cap = re.captures(line).unwrap();
-            (
-                cap["xval"].parse::<u32>().unwrap(),
-                cap["mval"].parse::<u32>().unwrap(),
-                cap["aval"].parse::<u32>().unwrap(),
-                cap["sval"].parse::<u32>().unwrap(),
-            )
+            [
+                cap["xval"].parse::<i64>().unwrap(),
+                cap["mval"].parse::<i64>().unwrap(),
+                cap["aval"].parse::<i64>().unwrap(),
+                cap["sval"].parse::<i64>().unwrap(),
+            ]
         })
         .collect();
 
@@ -97,78 +168,17 @@ pub fn part_one(input: &str) -> Option<u32> {
         instructions
             .iter()
             .cloned()
-            .filter(|tup| explore(*tup, &v, &name_to_workflow))
-            .map(|(x, m, a, s)| x + m + a + s)
+            .filter(|arr| i.explore(arr))
+            .map(|arr| arr.iter().sum::<i64>())
             .sum(),
     )
 }
 
-fn explore(
-    (x, m, a, s): (u32, u32, u32, u32),
-    v: &[Vec<Instr>],
-    ma: &HashMap<&str, usize>,
-) -> bool {
-    let mut vec = &v[ma["in"]];
-    let mut i = 0;
-    let mut next_instr = &vec[i];
-    loop {
-        match next_instr {
-            Instr::Accept => {
-                return true;
-            }
-            Instr::Reject => {
-                return false;
-            }
-            Instr::Goto { dest } => {
-                let s = &dest as &str;
-                vec = &v[ma[s]];
-                i = 0;
-                next_instr = &vec[i];
-            }
-            Instr::GreaterThan {
-                var,
-                comp,
-                else_cond,
-            } => {
-                let val = match var {
-                    'x' => x,
-                    'm' => m,
-                    'a' => a,
-                    's' => s,
-                    _ => panic!("found {}", var),
-                };
-                if val > *comp {
-                    next_instr = else_cond;
-                } else {
-                    i += 1;
-                    next_instr = &vec[i];
-                }
-            }
-            Instr::LessThan {
-                var,
-                comp,
-                else_cond,
-            } => {
-                let val = match var {
-                    'x' => x,
-                    'm' => m,
-                    'a' => a,
-                    's' => s,
-                    _ => panic!("found {}", var),
-                };
-                if val < *comp {
-                    next_instr = else_cond;
-                } else {
-                    i += 1;
-                    next_instr = &vec[i];
-                }
-            }
-        }
-    }
-}
-
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<i64> {
+    let (workflows, _) = input.split_once("\n\n").unwrap();
+    let i = parse_workflows(workflows);
+    let start_point = [(0, 4001), (0, 4001), (0, 4001), (0, 4001)];
+    Some(i.n_combos(&start_point))
 }
 
 #[cfg(test)]
@@ -184,6 +194,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(167409079868000));
     }
 }
