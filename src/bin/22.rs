@@ -43,13 +43,13 @@ impl Point {
     }
 }
 
-fn fall_bricks(bricks: Vec<Brick>) -> Option<(u32, Vec<Brick>, u32)> {
+fn fall_bricks(bricks: Vec<Brick>) -> Option<(u32, u32)> {
     let mut brick_supporters: HashMap<usize, HashSet<usize>> = HashMap::new();
     let mut brick_supported: HashMap<usize, HashSet<usize>> = HashMap::new();
     let mut z_map: HashMap<(isize, isize), isize> = HashMap::new();
     let mut grid: HashMap<Point, usize> = HashMap::new();
-    let mut new_bricks: Vec<Brick> = Vec::new();
-    let mut n_fall = 0;
+    let len_bricks = bricks.len();
+
     for b in bricks {
         brick_supporters.insert(b.id, HashSet::new());
         brick_supported.insert(b.id, HashSet::new());
@@ -65,7 +65,6 @@ fn fall_bricks(bricks: Vec<Brick>) -> Option<(u32, Vec<Brick>, u32)> {
         let b_bottom = std::cmp::min(b.start.z, b.end.z);
 
         // loop through all points for this brick
-        let mut new_points: Vec<Point> = Vec::new();
         for p in points {
             let possible_collision_point = Point {
                 x: p.x,
@@ -94,21 +93,7 @@ fn fall_bricks(bricks: Vec<Brick>) -> Option<(u32, Vec<Brick>, u32)> {
                 },
                 b.id,
             );
-            new_points.push(Point {
-                x: p.x,
-                y: p.y,
-                z: new_z + (p.z - b_bottom),
-            });
         }
-        let new_brick = Brick {
-            start: *new_points.first()?,
-            end: *new_points.last()?,
-            id: b.id,
-        };
-        if new_brick != b {
-            n_fall += 1;
-        }
-        new_bricks.push(new_brick);
     }
 
     let mut count = 0;
@@ -119,7 +104,33 @@ fn fall_bricks(bricks: Vec<Brick>) -> Option<(u32, Vec<Brick>, u32)> {
         }
     }
 
-    Some((count, new_bricks, n_fall))
+    // PT 2 IDEA:
+    // for each brick, find the bricks that it is the sole supporter of
+    // add these bricks to the delete file
+    let mut acc_fall = 0;
+    for id in 0..len_bricks {
+        let mut explore = Vec::from([id]);
+        let mut will_fall: HashSet<usize> = HashSet::from([id]);
+        while let Some(new_id) = explore.pop() {
+            let to_remove = will_fall.clone();
+            for s in &brick_supporters[&new_id] {
+                if brick_supported[s]
+                    .clone()
+                    .iter()
+                    .filter(|x| !to_remove.contains(x))
+                    .count()
+                    == 0
+                    && !will_fall.contains(s)
+                {
+                    explore.push(*s);
+                    will_fall.insert(*s);
+                }
+            }
+        }
+        acc_fall += will_fall.len() - 1;
+    }
+
+    Some((count, acc_fall as u32))
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -136,6 +147,7 @@ pub fn part_one(input: &str) -> Option<u32> {
         .collect();
 
     bricks.sort_by_key(|brick| std::cmp::min(brick.start.z, brick.end.z));
+
     Some(fall_bricks(bricks).unwrap().0)
 }
 
@@ -153,16 +165,7 @@ pub fn part_two(input: &str) -> Option<u32> {
         .collect();
 
     bricks.sort_by_key(|brick| std::cmp::min(brick.start.z, brick.end.z));
-    let (_, bricks, _) = fall_bricks(bricks).unwrap();
-
-    let mut ans = Vec::new();
-    for i in 0..bricks.len() {
-        let mut new_bricks = bricks.clone();
-        new_bricks.remove(i);
-        let (_, _, n) = fall_bricks(new_bricks).unwrap();
-        ans.push(n);
-    }
-    Some(ans.iter().sum())
+    Some(fall_bricks(bricks).unwrap().1)
 }
 
 #[cfg(test)]
