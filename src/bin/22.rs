@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 advent_of_code::solution!(22);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 struct Brick {
     start: Point,
     end: Point,
@@ -43,26 +43,13 @@ impl Point {
     }
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
-    let mut bricks: Vec<_> = input
-        .lines()
-        .enumerate()
-        .map(|(i, line)| {
-            let (start, end) = line.split_once('~').unwrap();
-            let start = Point::from_str(start);
-            let end = Point::from_str(end);
-            let id = i;
-            Brick { start, end, id }
-        })
-        .collect();
-
-    bricks.sort_by_key(|brick| std::cmp::min(brick.start.z, brick.end.z));
-
+fn fall_bricks(bricks: Vec<Brick>) -> Option<(u32, Vec<Brick>, u32)> {
     let mut brick_supporters: HashMap<usize, HashSet<usize>> = HashMap::new();
     let mut brick_supported: HashMap<usize, HashSet<usize>> = HashMap::new();
     let mut z_map: HashMap<(isize, isize), isize> = HashMap::new();
     let mut grid: HashMap<Point, usize> = HashMap::new();
-
+    let mut new_bricks: Vec<Brick> = Vec::new();
+    let mut n_fall = 0;
     for b in bricks {
         brick_supporters.insert(b.id, HashSet::new());
         brick_supported.insert(b.id, HashSet::new());
@@ -78,6 +65,7 @@ pub fn part_one(input: &str) -> Option<u32> {
         let b_bottom = std::cmp::min(b.start.z, b.end.z);
 
         // loop through all points for this brick
+        let mut new_points: Vec<Point> = Vec::new();
         for p in points {
             let possible_collision_point = Point {
                 x: p.x,
@@ -106,7 +94,21 @@ pub fn part_one(input: &str) -> Option<u32> {
                 },
                 b.id,
             );
+            new_points.push(Point {
+                x: p.x,
+                y: p.y,
+                z: new_z + (p.z - b_bottom),
+            });
         }
+        let new_brick = Brick {
+            start: *new_points.first()?,
+            end: *new_points.last()?,
+            id: b.id,
+        };
+        if new_brick != b {
+            n_fall += 1;
+        }
+        new_bricks.push(new_brick);
     }
 
     let mut count = 0;
@@ -116,12 +118,51 @@ pub fn part_one(input: &str) -> Option<u32> {
             count += 1;
         }
     }
-    Some(count)
-    // None
+
+    Some((count, new_bricks, n_fall))
+}
+
+pub fn part_one(input: &str) -> Option<u32> {
+    let mut bricks: Vec<_> = input
+        .lines()
+        .enumerate()
+        .map(|(i, line)| {
+            let (start, end) = line.split_once('~').unwrap();
+            let start = Point::from_str(start);
+            let end = Point::from_str(end);
+            let id = i;
+            Brick { start, end, id }
+        })
+        .collect();
+
+    bricks.sort_by_key(|brick| std::cmp::min(brick.start.z, brick.end.z));
+    Some(fall_bricks(bricks).unwrap().0)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let mut bricks: Vec<_> = input
+        .lines()
+        .enumerate()
+        .map(|(i, line)| {
+            let (start, end) = line.split_once('~').unwrap();
+            let start = Point::from_str(start);
+            let end = Point::from_str(end);
+            let id = i;
+            Brick { start, end, id }
+        })
+        .collect();
+
+    bricks.sort_by_key(|brick| std::cmp::min(brick.start.z, brick.end.z));
+    let (_, bricks, _) = fall_bricks(bricks).unwrap();
+
+    let mut ans = Vec::new();
+    for i in 0..bricks.len() {
+        let mut new_bricks = bricks.clone();
+        new_bricks.remove(i);
+        let (_, _, n) = fall_bricks(new_bricks).unwrap();
+        ans.push(n);
+    }
+    Some(ans.iter().sum())
 }
 
 #[cfg(test)]
@@ -137,6 +178,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(7));
     }
 }
