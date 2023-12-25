@@ -1,41 +1,45 @@
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::hash::{Hash, Hasher};
+use std::collections::{HashMap, HashSet};
 
 advent_of_code::solution!(23);
 
-#[derive(Debug, Clone)]
-struct State {
-    priority: u32,
+fn get_neighbors(
     loc: (isize, isize),
-    dir: (isize, isize),
-    visited: HashSet<(isize, isize)>,
-}
+    grid: &HashMap<(isize, isize), char>,
+    grid_dim: (isize, isize),
+    ignore_slopes: bool,
+) -> Vec<(isize, isize)> {
+    let mut neighbors: Vec<(isize, isize)> = Vec::new();
 
-impl PartialEq for State {
-    fn eq(&self, other: &Self) -> bool {
-        self.loc == other.loc && self.dir == other.dir && self.visited == other.visited
+    let (y, x) = loc;
+
+    let mut new_dirs = Vec::new();
+    match grid.get(&loc).unwrap() {
+        '#' => return Vec::new(),
+        'v' => new_dirs.push((1, 0)),
+        '>' => new_dirs.push((0, 1)),
+        '<' => new_dirs.push((0, -1)),
+        '^' => new_dirs.push((-1, 0)),
+        '.' => new_dirs = Vec::from([(1, 0), (-1, 0), (0, 1), (0, -1)]),
+        c => panic!("not expecting {}", c),
     }
-}
-
-impl Eq for State {}
-
-impl Hash for State {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.loc.hash(state);
+    if ignore_slopes {
+        new_dirs = Vec::from([(1, 0), (-1, 0), (0, 1), (0, -1)]);
     }
-}
 
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
+    for (dy, dx) in new_dirs {
+        let (new_y, new_x) = (y + dy, x + dx);
 
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.priority.cmp(&other.priority)
+        if new_y >= 0
+            && new_y <= grid_dim.0
+            && new_x >= 0
+            && new_x <= grid_dim.1
+            && grid.get(&(new_y, new_x)).unwrap() != &'#'
+        {
+            neighbors.push((new_y, new_x));
+        }
     }
+
+    neighbors
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -62,85 +66,60 @@ pub fn part_one(input: &str) -> Option<u32> {
         }
     }
 
-    let mut distances: HashMap<State, u32> = HashMap::new();
-    let mut q: BinaryHeap<State> = BinaryHeap::new();
+    let mut dps: HashSet<(isize, isize)> = grid
+        .iter()
+        .filter_map(|(loc, _c)| {
+            if get_neighbors(*loc, &grid, (y_max, x_max), false).len() > 2 {
+                Some(*loc)
+            } else {
+                None
+            }
+        })
+        .collect();
 
-    let s = State {
-        loc: start,
-        dir: (0, 1),
-        priority: 0,
-        visited: HashSet::new(),
-    };
+    dps.insert(start);
+    dps.insert(end);
+    let mut distances: HashMap<(isize, isize), HashMap<(isize, isize), u32>> = HashMap::new();
 
-    q.push(s.clone());
-    distances.insert(s.clone(), 0);
+    for pt in dps.clone() {
+        let mut dist_map = HashMap::new();
+        let mut stack = Vec::from([(pt, 0)]);
+        let mut seen = HashSet::from([pt]);
 
-    while let Some(state) = q.pop() {
-        if let Some(neighbs) = state.get_neighbors(&grid, (y_max, x_max), false) {
-            for next_state in &neighbs {
-                if next_state.priority > *distances.get(next_state).unwrap_or(&0) {
-                    distances.insert(next_state.clone(), next_state.priority);
-                    q.push(next_state.clone());
+        while let Some((loc, dist)) = stack.pop() {
+            if dist != 0 && dps.contains(&loc) {
+                dist_map.insert(loc, dist);
+                continue;
+            }
+
+            for n in get_neighbors(loc, &grid, (y_max, x_max), false) {
+                if !seen.contains(&n) {
+                    stack.push((n, dist + 1));
+                    seen.insert(n);
                 }
             }
         }
+        distances.insert(pt, dist_map);
     }
 
-    distances
-        .iter()
-        .filter(|(key, _value)| key.loc == end)
-        .map(|(_key, value)| value)
-        .max()
-        .copied()
-}
-impl State {
-    fn get_neighbors(
-        &self,
-        grid: &HashMap<(isize, isize), char>,
-        grid_dim: (isize, isize),
-        ignore_slopes: bool,
-    ) -> Option<Vec<State>> {
-        let mut neighbors: Vec<State> = Vec::new();
+    let mut largest = 0;
+    let mut stack = Vec::from([(start, 0_u32, HashSet::from([start]))]);
 
-        let (y, x) = self.loc;
-
-        let mut new_dirs = Vec::new();
-        match grid.get(&self.loc)? {
-            '#' => return None,
-            'v' => new_dirs.push((1, 0)),
-            '>' => new_dirs.push((0, 1)),
-            '<' => new_dirs.push((0, -1)),
-            '^' => new_dirs.push((-1, 0)),
-            '.' => new_dirs = Vec::from([(1, 0), (-1, 0), (0, 1), (0, -1)]),
-            c => panic!("not expecting {}", c),
+    while let Some((loc, dist, path)) = stack.pop() {
+        if loc == end && dist > largest {
+            largest = dist;
         }
-        if ignore_slopes {
-            new_dirs = Vec::from([(1, 0), (-1, 0), (0, 1), (0, -1)]);
-        }
-        for (dy, dx) in new_dirs {
-            let (new_y, new_x) = (y + dy, x + dx);
 
-            if new_y >= 0
-                && new_y <= grid_dim.0
-                && new_x >= 0
-                && new_x <= grid_dim.1
-                && !self.visited.contains(&(new_y, new_x))
-                && grid.get(&(new_y, new_x))? != &'#'
-            {
-                let mut visited = self.visited.clone();
-                visited.insert(self.loc);
-
-                neighbors.push(State {
-                    loc: (new_y, new_x),
-                    dir: (dy, dx),
-                    priority: self.priority + 1,
-                    visited,
-                });
+        for (next, cost) in &distances[&loc] {
+            let mut new_path = path.clone();
+            if !path.contains(&next) {
+                new_path.insert(*next);
+                stack.push((*next, dist + cost, new_path));
             }
         }
-
-        Some(neighbors)
     }
+
+    Some(largest)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -167,39 +146,60 @@ pub fn part_two(input: &str) -> Option<u32> {
         }
     }
 
-    let mut distances: HashMap<State, u32> = HashMap::new();
-    // let mut q: BinaryHeap<State> = BinaryHeap::new();
-    let mut q: Vec<State> = Vec::new();
-    let s = State {
-        loc: start,
-        dir: (0, 1),
-        priority: 0,
-        visited: HashSet::new(),
-    };
+    let mut dps: HashSet<(isize, isize)> = grid
+        .iter()
+        .filter_map(|(loc, _c)| {
+            if get_neighbors(*loc, &grid, (y_max, x_max), false).len() > 2 {
+                Some(*loc)
+            } else {
+                None
+            }
+        })
+        .collect();
 
-    q.push(s.clone());
-    distances.insert(s.clone(), 0);
+    dps.insert(start);
+    dps.insert(end);
+    let mut distances: HashMap<(isize, isize), HashMap<(isize, isize), u32>> = HashMap::new();
 
-    while let Some(state) = q.pop() {
-        // if state.loc == end {
-        // return Some(state.priority);
-        // }
-        if let Some(neighbs) = state.get_neighbors(&grid, (y_max, x_max), true) {
-            for next_state in &neighbs {
-                if next_state.priority > *distances.get(next_state).unwrap_or(&0) {
-                    distances.insert(next_state.clone(), next_state.priority);
-                    q.push(next_state.clone());
+    for pt in dps.clone() {
+        let mut dist_map = HashMap::new();
+        let mut stack = Vec::from([(pt, 0)]);
+        let mut seen = HashSet::from([pt]);
+
+        while let Some((loc, dist)) = stack.pop() {
+            if dist != 0 && dps.contains(&loc) {
+                dist_map.insert(loc, dist);
+                continue;
+            }
+
+            for n in get_neighbors(loc, &grid, (y_max, x_max), true) {
+                if !seen.contains(&n) {
+                    stack.push((n, dist + 1));
+                    seen.insert(n);
                 }
+            }
+        }
+        distances.insert(pt, dist_map);
+    }
+
+    let mut largest = 0;
+    let mut stack = Vec::from([(start, 0_u32, HashSet::from([start]))]);
+
+    while let Some((loc, dist, path)) = stack.pop() {
+        if loc == end && dist > largest {
+            largest = dist;
+        }
+
+        for (next, cost) in &distances[&loc] {
+            let mut new_path = path.clone();
+            if !path.contains(&next) {
+                new_path.insert(*next);
+                stack.push((*next, dist + cost, new_path));
             }
         }
     }
 
-    distances
-        .iter()
-        .filter(|(key, _value)| key.loc == end)
-        .map(|(_key, value)| value)
-        .max()
-        .copied()
+    Some(largest)
 }
 
 #[cfg(test)]
